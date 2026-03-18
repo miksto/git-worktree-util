@@ -6,8 +6,8 @@ usage() {
 git-wt - Create git worktrees alongside the current repository.
 
 Usage:
-  git-wt -f <name>            Create a new branch from the default branch
-  git-wt -b <branch>          Check out an existing branch
+  git-wt -f <name>            Create a new branch in a new worktree
+  git-wt -b <branch>          Check out an existing branch in a new worktree
   git-wt rm                   Remove the current worktree and cd back
 
 Options:
