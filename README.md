@@ -54,10 +54,13 @@ git-wt rm
 
 ### Tip: cd into the new worktree
 
-Since `git-wt` prints the worktree path to stdout, you can wrap it in a shell function:
+Since `git-wt` prints the worktree path to stdout, you can wrap it in a shell function to automatically cd into the result:
 
 ```bash
-wt() { cd "$(git-wt "$@")" || return; }
+git-wt() {
+  local dir
+  dir="$(/path/to/git-wt "$@")" && cd "$dir"
+}
 ```
 
-Then `wt -f my-feature` will create the worktree and cd into it in one step.
+Then `git-wt -f my-feature` will create the worktree and cd into it in one step, and `git-wt rm` will return you to the main repo.
