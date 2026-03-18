@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'USAGE'
+git-wt - Create git worktrees alongside the current repository.
+
+Usage:
+  git-wt -f <name>            Create a new branch from the default branch
+  git-wt -b <branch>          Check out an existing branch
+  git-wt rm                   Remove the current worktree and cd back
+
+Options:
+  -f, --feature <name>        Create a new branch <name> based off master/main
+                               and set up a worktree for it.
+  -b, --branch <branch>       Check out an existing <branch> into a worktree.
+                               The directory name is derived by stripping the
+                               first path component (e.g. feature/foo -> foo).
+  rm                          Remove the worktree for the current directory
+                               and cd back to the main repository.
+  -h, --help                  Show this help message.
+
+Examples:
+  git-wt -f APP-1234-new-api
+      Creates branch APP-1234-new-api from master and worktree at
+      ../myrepo-APP-1234-new-api/
+
+  git-wt -b feature/APP-1234-new-api
+      Checks out existing branch into worktree at
+      ../myrepo-APP-1234-new-api/
+
+  git-wt rm
+      Removes the current worktree and returns to the main repo
+USAGE
+  exit "${1:-1}"
+}
+
+if [[ $# -eq 0 ]]; then
+  usage
+elif [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  usage 0
+fi
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+  echo "Error: not inside a git repository" >&2
+  exit 1
+}
+
+repo_name="$(basename "$repo_root")"
+
+if [[ $# -eq 1 && "$1" == "rm" ]]; then
+  # --git-common-dir returns e.g. /path/to/main-repo/.git
+  main_repo="$(cd "$(git rev-parse --git-common-dir)" && cd .. && pwd)"
+
+  if [[ "$repo_root" == "$main_repo" ]]; then
+    echo "Error: current directory is the main repository, not a worktree" >&2
+    exit 1
+  fi
+
+  echo "Removing worktree at $repo_root" >&2
+  cd "$main_repo"
+  git worktree remove "$repo_root" >&2 || exit 1
+
+  echo "$main_repo"
+elif [[ $# -eq 2 && ("$1" == "--branch" || "$1" == "-b") ]]; then
+  branch="$2"
+  # Derive suffix: use last path component (e.g. feature/APP-1234 -> APP-1234)
+  suffix="${branch##*/}"
+  worktree_path="$(dirname "$repo_root")/${repo_name}-${suffix}"
+
+  git worktree add "$worktree_path" "$branch" >&2 || exit 1
+
+  echo "Worktree created at $worktree_path (branch: $branch)" >&2
+  echo "$worktree_path"
+elif [[ $# -eq 2 && ("$1" == "--feature" || "$1" == "-f") ]]; then
+  suffix="$2"
+
+  # Detect default branch
+  if git show-ref --verify --quiet refs/heads/master; then
+    base_branch="master"
+  elif git show-ref --verify --quiet refs/heads/main; then
+    base_branch="main"
+  else
+    echo "Error: neither 'master' nor 'main' branch found" >&2
+    exit 1
+  fi
+
+  worktree_path="$(dirname "$repo_root")/${repo_name}-${suffix}"
+
+  git worktree add -b "$suffix" "$worktree_path" "$base_branch" >&2 || exit 1
+
+  echo "Worktree created at $worktree_path (branch: $suffix from $base_branch)" >&2
+  echo "$worktree_path"
+else
+  usage
+fi
